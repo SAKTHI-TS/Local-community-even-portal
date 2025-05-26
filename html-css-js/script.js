@@ -3,7 +3,11 @@ console.log('Welcome to the Community Portal');
 
 // Load event when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    alert('Welcome to the Local Community Event Portal!');
+    // Initialize all Bootstrap tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 
     // Event constructor
     class Event {
@@ -45,10 +49,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const messageTextarea = document.getElementById('message');
     const charCount = document.getElementById('charCount');
     const clearPrefsButton = document.getElementById('clearPreferences');
+    const locationInfo = document.getElementById('locationInfo');
 
-    // Handle form submission
+    // Bootstrap form validation
+    function validateForm() {
+        form.classList.add('was-validated');
+        return form.checkValidity();
+    }
+
+    // Handle form submission with Bootstrap validation
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
+        
+        if (!validateForm()) {
+            return;
+        }
         
         try {
             // Form validation
@@ -60,6 +75,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error('Please fill in all required fields');
             }
 
+            // Show loading state on button
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Registering...';
+            submitBtn.disabled = true;
+
             // Simulate API call
             const response = await simulateApiCall({
                 name,
@@ -68,8 +89,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (response.success) {
-                formOutput.textContent = 'Registration successful!';
-                formOutput.style.color = 'green';
+                formOutput.innerHTML = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        Registration successful!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>`;
                 
                 // Track registration
                 const count = trackRegistration(eventType);
@@ -77,17 +101,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 // Save preference
                 localStorage.setItem('preferredEventType', eventType);
+                
+                // Reset form
+                form.classList.remove('was-validated');
+                form.reset();
             }
 
         } catch (error) {
-            formOutput.textContent = `Error: ${error.message}`;
-            formOutput.style.color = 'red';
+            formOutput.innerHTML = `
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    Error: ${error.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>`;
+        } finally {
+            // Restore button state
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
         }
     });
 
-    // Character counter
-    messageTextarea.addEventListener('keydown', function() {
-        charCount.textContent = `Characters: ${this.value.length}`;
+    // Character counter with Bootstrap styling
+    messageTextarea.addEventListener('input', function() {
+        const maxLength = 500;
+        const remaining = maxLength - this.value.length;
+        charCount.innerHTML = `
+            <small class="text-muted">
+                Characters: ${this.value.length}
+                <span class="${remaining < 50 ? 'text-danger' : ''}">
+                    (${remaining} remaining)
+                </span>
+            </small>`;
     });
 
     // Load saved preferences
@@ -96,20 +140,48 @@ document.addEventListener('DOMContentLoaded', function() {
         eventTypeSelect.value = savedEventType;
     }
 
-    // Clear preferences
+    // Clear preferences with Bootstrap toast notification
     clearPrefsButton.addEventListener('click', function() {
         localStorage.clear();
         sessionStorage.clear();
         eventTypeSelect.value = '';
-        formOutput.textContent = 'Preferences cleared';
+        form.classList.remove('was-validated');
+        
+        // Show toast notification
+        const toastHtml = `
+            <div class="toast position-fixed bottom-0 end-0 m-3" role="alert">
+                <div class="toast-header">
+                    <strong class="me-auto">Notification</strong>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    Preferences have been cleared successfully.
+                </div>
+            </div>`;
+        
+        document.body.insertAdjacentHTML('beforeend', toastHtml);
+        const toastEl = document.body.querySelector('.toast:last-child');
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
     });
 
-    // Phone validation
+    // Phone validation with Bootstrap validation feedback
     const phoneInput = document.getElementById('phone');
     phoneInput.addEventListener('blur', function() {
         const phonePattern = /^\d{3}-\d{3}-\d{4}$/;
-        if (!phonePattern.test(this.value) && this.value !== '') {
-            alert('Please use format: 123-456-7890');
+        if (this.value !== '') {
+            if (!phonePattern.test(this.value)) {
+                this.classList.add('is-invalid');
+                if (!this.nextElementSibling?.classList.contains('invalid-feedback')) {
+                    const feedback = document.createElement('div');
+                    feedback.className = 'invalid-feedback';
+                    feedback.textContent = 'Please use format: 123-456-7890';
+                    this.parentNode.appendChild(feedback);
+                }
+            } else {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            }
         }
     });
 
@@ -135,53 +207,84 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle event type change
+    // Handle event type change with Bootstrap badge
     eventTypeSelect.addEventListener('change', function() {
         const selectedEvent = events.find(event => event.category === this.value);
         if (selectedEvent) {
-            document.getElementById('eventFee').textContent = 
-                `Event Fee: $${selectedEvent.price}`;
+            document.getElementById('eventFee').innerHTML = `
+                <span class="badge bg-primary">
+                    Event Fee: $${selectedEvent.price}
+                </span>`;
         }
     });
 
-    // Image handling
+    // Image handling with Bootstrap modal
     document.querySelectorAll('.event-image').forEach(img => {
-        img.addEventListener('dblclick', function() {
-            this.style.transform = this.style.transform === 'scale(1.5)' 
-                ? 'scale(1)' 
-                : 'scale(1.5)';
+        img.addEventListener('click', function() {
+            // Create modal if it doesn't exist
+            if (!document.getElementById('imageModal')) {
+                const modalHtml = `
+                    <div class="modal fade" id="imageModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-body p-0">
+                                    <img src="" class="img-fluid" id="modalImage">
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            }
+            
+            // Update and show modal
+            const modalImage = document.getElementById('modalImage');
+            modalImage.src = this.src;
+            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+            modal.show();
         });
     });
 
-    // Video ready event
+    // Video ready event with Bootstrap alert
     const video = document.getElementById('promoVideo');
     if (video) {
         video.addEventListener('canplay', function() {
-            document.getElementById('videoMessage').textContent = 
-                'Video ready to play';
+            document.getElementById('videoMessage').innerHTML = `
+                <div class="alert alert-success" role="alert">
+                    <i class="bi bi-play-circle-fill"></i> Video ready to play
+                </div>`;
         });
     }
 
-    // Warn before leaving
-    window.addEventListener('beforeunload', function(e) {
-        if (form.elements.name.value || form.elements.email.value) {
-            e.preventDefault();
-            e.returnValue = '';
-        }
-    });
-
-    // Geolocation
+    // Geolocation with Bootstrap spinner and alert
     document.getElementById('findEvents').addEventListener('click', function() {
         if ("geolocation" in navigator) {
+            locationInfo.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    Finding your location...
+                </div>`;
+            locationInfo.classList.remove('d-none');
+            
             navigator.geolocation.getCurrentPosition(
                 position => {
                     const { latitude, longitude } = position.coords;
-                    document.getElementById('locationInfo').textContent = 
-                        `Location found: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                    locationInfo.innerHTML = `
+                        <div class="alert alert-success" role="alert">
+                            <i class="bi bi-geo-alt-fill"></i>
+                            Location found: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}
+                            <div class="mt-2">
+                                <small class="text-muted">Searching for events near you...</small>
+                            </div>
+                        </div>`;
                 },
                 error => {
-                    document.getElementById('locationInfo').textContent = 
-                        `Error: ${error.message}`;
+                    locationInfo.innerHTML = `
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            Error: ${error.message}
+                        </div>`;
                 }
             );
         }
